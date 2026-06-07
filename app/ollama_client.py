@@ -5,7 +5,7 @@ import requests
 from config import MODEL_EMBED, MODEL_LLM, MODEL_LLM_HERMES, OLLAMA_API_KEY
 
 
-OLLAMA_BASE_URL = "https://api.ollama.com/v1"
+OLLAMA_BASE_URL = "https://api.ollama.com"
 REQUEST_TIMEOUT_SECONDS = 120
 
 
@@ -20,7 +20,7 @@ def _headers() -> dict[str, str]:
 
 def embed(text: str) -> list[float]:
     response = requests.post(
-        f"{OLLAMA_BASE_URL}/embeddings",
+        f"{OLLAMA_BASE_URL}/api/embed",
         headers=_headers(),
         json={"model": MODEL_EMBED, "input": text},
         timeout=REQUEST_TIMEOUT_SECONDS,
@@ -28,11 +28,17 @@ def embed(text: str) -> list[float]:
     response.raise_for_status()
     data: dict[str, Any] = response.json()
 
-    if "embedding" in data:
-        return data["embedding"]
+    # Native Ollama Cloud format: {"embeddings": [[...]]}
+    if "embeddings" in data and data["embeddings"]:
+        return data["embeddings"][0]
 
+    # OpenAI-compatible format: {"data": [{"embedding": [...]}]}
     if "data" in data and data["data"]:
         return data["data"][0]["embedding"]
+
+    # Legacy single-vector format
+    if "embedding" in data:
+        return data["embedding"]
 
     raise RuntimeError("Unexpected embedding response format from Ollama Cloud.")
 
@@ -40,7 +46,7 @@ def embed(text: str) -> list[float]:
 def ask_llm(prompt: str, model: str = "qwen") -> str:
     selected_model = MODEL_LLM_HERMES if model == "hermes" else MODEL_LLM
     response = requests.post(
-        f"{OLLAMA_BASE_URL}/chat/completions",
+        f"{OLLAMA_BASE_URL}/v1/chat/completions",
         headers=_headers(),
         json={
             "model": selected_model,
