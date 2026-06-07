@@ -13,7 +13,7 @@ from ollama_client import embed
 
 
 COLLECTION_NAME = "ceni_docs"
-VECTOR_SIZE = 4096
+VECTOR_SIZE = 768  # nomic-embed-text produces 768-dimensional vectors
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 CHUNK_SIZE_CHARS = 1_800
 CHUNK_OVERLAP_CHARS = 250
