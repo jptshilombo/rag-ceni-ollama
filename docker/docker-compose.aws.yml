@@ -1,0 +1,24 @@
+services:
+  qdrant:
+    image: qdrant/qdrant
+    volumes:
+      - qdrant_data:/qdrant/storage
+    # Garder Qdrant interne en production. Ajouter temporairement "6333:6333"
+    # uniquement pour une administration depuis une IP de confiance.
+
+  api:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../data:/data
+    env_file:
+      - ../.env
+    depends_on:
+      - qdrant
+    restart: always
+
+volumes:
+  qdrant_data:
