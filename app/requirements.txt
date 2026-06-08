@@ -8,7 +8,7 @@ llama-index-vector-stores-qdrant
 qdrant-client
 python-dotenv
 requests
-pytesseract
+easyocr
 pdf2image
 python-docx
 pymupdf

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import Iterable
 
@@ -33,13 +34,16 @@ def read_docx(path: Path) -> str:
 
 def read_document(path: Path) -> str:
     suffix = path.suffix.lower()
-    if suffix == ".pdf":
-        return extract_text_from_pdf(str(path))
-    if suffix == ".docx":
-        return read_docx(path)
-    if suffix == ".txt":
-        return read_txt(path)
-    raise ValueError(f"Unsupported file type: {path}")
+    try:
+        if suffix == ".pdf":
+            return extract_text_from_pdf(str(path))
+        if suffix == ".docx":
+            return read_docx(path)
+        if suffix == ".txt":
+            return read_txt(path)
+        raise ValueError(f"Unsupported file type: {path}")
+    except Exception as exc:
+        raise RuntimeError(f"Impossible de lire `{path.name}`: {exc}") from exc
 
 
 def clean_text(text: str) -> str:
@@ -53,7 +57,12 @@ def clean_text(text: str) -> str:
 def load_documents(data_dir: Path = DATA_DIR) -> list[Document]:
     documents: list[Document] = []
     for path in iter_documents(data_dir):
-        text = clean_text(read_document(path))
+        try:
+            text = clean_text(read_document(path))
+        except RuntimeError as exc:
+            print(f"[WARN] {exc}", file=sys.stderr)
+            continue
+
         if not text:
             continue
 

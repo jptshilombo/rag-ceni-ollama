@@ -9,14 +9,14 @@ Le POC repose sur :
 - `Ollama` local pour le LLM et les embeddings ;
 - `FastAPI` pour l'API ;
 - `Streamlit` pour l'interface locale ;
-- `PyMuPDF`, `Tesseract` et `python-docx` pour l'extraction documentaire.
+- `PyMuPDF`, `EasyOCR` et `python-docx` pour l'extraction documentaire.
 
 ## Prerequis
 
 - Python 3.10+
 - Docker et Docker Compose
 - Ollama installe localement
-- Pour les PDF scannes : `tesseract-ocr`, pack langue francais, et `poppler-utils`
+- Pour les PDF scannes : `EasyOCR` via `pip`, et `poppler-utils`
 
 ## Installation d'Ollama
 
@@ -73,6 +73,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r app/requirements.txt
 ```
+
+Au premier lancement OCR, `EasyOCR` peut telecharger ses modeles localement.
 
 ## Ajouter des documents
 
