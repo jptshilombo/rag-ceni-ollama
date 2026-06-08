@@ -9,6 +9,7 @@ from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
 from llama_index.vector_stores.qdrant import QdrantVectorStore
+from ollama import AsyncClient, Client
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams
 
@@ -126,6 +127,8 @@ def get_llm(model_name: str | None = None, provider: str | None = None) -> Ollam
     provider_config = _get_provider_config(provider)
     allowed_models = [str(model) for model in provider_config["models"]]
     headers = dict(provider_config.get("headers", {}) or {})
+    base_url = str(provider_config["base_url"])
+    verify = bool(provider_config.get("verify", True))
     selected_model = (model_name or OLLAMA_LLM_MODEL).strip()
     if selected_model not in allowed_models:
         raise RuntimeError(
@@ -134,9 +137,21 @@ def get_llm(model_name: str | None = None, provider: str | None = None) -> Ollam
         )
     return Ollama(
         model=selected_model,
-        base_url=str(provider_config["base_url"]),
+        base_url=base_url,
         request_timeout=OLLAMA_REQUEST_TIMEOUT,
         headers=headers,
+        client=Client(
+            host=base_url,
+            timeout=OLLAMA_REQUEST_TIMEOUT,
+            headers=headers,
+            verify=verify,
+        ),
+        async_client=AsyncClient(
+            host=base_url,
+            timeout=OLLAMA_REQUEST_TIMEOUT,
+            headers=headers,
+            verify=verify,
+        ),
     )
 
 

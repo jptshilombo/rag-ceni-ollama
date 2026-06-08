@@ -12,18 +12,33 @@ ENV: str = os.getenv("ENV", "local")
 
 OLLAMA_PROVIDER: str = os.getenv("OLLAMA_PROVIDER", "local").strip().lower()
 OLLAMA_LOCAL_BASE_URL: str = os.getenv("OLLAMA_LOCAL_BASE_URL", "http://localhost:11434")
-OLLAMA_CLOUD_BASE_URL: str = os.getenv("OLLAMA_CLOUD_BASE_URL", "https://ollama.com/api")
 OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", OLLAMA_LOCAL_BASE_URL)
 OLLAMA_API_KEY: str = os.getenv("OLLAMA_API_KEY", "").strip()
+OLLAMA_CLOUD_SSL_VERIFY: bool = os.getenv("OLLAMA_CLOUD_SSL_VERIFY", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 OLLAMA_LLM_MODEL: str = os.getenv("OLLAMA_LLM_MODEL", "qwen2.5:7b")
 OLLAMA_LOCAL_LLM_MODELS_RAW: str = os.getenv("OLLAMA_LOCAL_LLM_MODELS", os.getenv("OLLAMA_LLM_MODELS", OLLAMA_LLM_MODEL))
 OLLAMA_CLOUD_LLM_MODELS_RAW: str = os.getenv("OLLAMA_CLOUD_LLM_MODELS", OLLAMA_LLM_MODEL)
+
+
+def _normalize_ollama_host(raw_url: str) -> str:
+    base_url = raw_url.rstrip("/")
+    if base_url.endswith("/api"):
+        return base_url[:-4]
+    return base_url
 
 
 def _parse_models(raw_value: str) -> list[str]:
     return [model.strip() for model in raw_value.split(",") if model.strip()]
 
 
+OLLAMA_CLOUD_BASE_URL: str = _normalize_ollama_host(
+    os.getenv("OLLAMA_CLOUD_BASE_URL", "https://ollama.com/api")
+)
 OLLAMA_LOCAL_LLM_MODELS: list[str] = _parse_models(OLLAMA_LOCAL_LLM_MODELS_RAW)
 OLLAMA_CLOUD_LLM_MODELS: list[str] = _parse_models(OLLAMA_CLOUD_LLM_MODELS_RAW)
 if not OLLAMA_LOCAL_LLM_MODELS:
@@ -35,11 +50,12 @@ OLLAMA_PROVIDERS: list[str] = ["local", "cloud"]
 if OLLAMA_PROVIDER not in OLLAMA_PROVIDERS:
     OLLAMA_PROVIDER = "local"
 
-OLLAMA_PROVIDER_CONFIGS: dict[str, dict[str, str | list[str]]] = {
+OLLAMA_PROVIDER_CONFIGS: dict[str, dict[str, object]] = {
     "local": {
         "base_url": OLLAMA_LOCAL_BASE_URL,
         "models": OLLAMA_LOCAL_LLM_MODELS,
         "headers": {},
+        "verify": True,
     },
     "cloud": {
         "base_url": OLLAMA_CLOUD_BASE_URL,
@@ -49,6 +65,7 @@ OLLAMA_PROVIDER_CONFIGS: dict[str, dict[str, str | list[str]]] = {
             if OLLAMA_API_KEY
             else {}
         ),
+        "verify": OLLAMA_CLOUD_SSL_VERIFY,
     },
 }
 

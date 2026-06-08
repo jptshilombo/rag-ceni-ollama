@@ -14,11 +14,13 @@ def embed(text: str) -> list[float]:
     provider_config = _get_provider_config("local")
     base_url = str(provider_config["base_url"])
     headers = {**_headers(), **dict(provider_config.get("headers", {}) or {})}
+    verify = bool(provider_config.get("verify", True))
     response = requests.post(
         f"{base_url}/api/embeddings",
         headers=headers,
         json={"model": OLLAMA_EMBED_MODEL, "prompt": text},
         timeout=OLLAMA_REQUEST_TIMEOUT,
+        verify=verify,
     )
     response.raise_for_status()
     data: dict[str, Any] = response.json()
@@ -42,6 +44,7 @@ def ask_llm(prompt: str, llm_model: str | None = None, llm_provider: str | None 
     provider_config = _get_provider_config(llm_provider)
     base_url = str(provider_config["base_url"])
     headers = {**_headers(), **dict(provider_config.get("headers", {}) or {})}
+    verify = bool(provider_config.get("verify", True))
     response = requests.post(
         f"{base_url}/api/generate",
         headers=headers,
@@ -52,6 +55,7 @@ def ask_llm(prompt: str, llm_model: str | None = None, llm_provider: str | None 
             "stream": False,
         },
         timeout=OLLAMA_REQUEST_TIMEOUT,
+        verify=verify,
     )
     response.raise_for_status()
     data: dict[str, Any] = response.json()

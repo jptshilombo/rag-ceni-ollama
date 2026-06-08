@@ -51,9 +51,10 @@ Variables principales :
 - `OLLAMA_LOCAL_BASE_URL=http://localhost:11434`
 - `OLLAMA_CLOUD_BASE_URL=https://ollama.com`
 - `OLLAMA_API_KEY=<votre_cle_api_ollama>`
+- `OLLAMA_CLOUD_SSL_VERIFY=true`
 - `OLLAMA_LLM_MODEL=qwen2.5:7b`
 - `OLLAMA_LOCAL_LLM_MODELS=qwen2.5:7b,llama3.1:8b,mistral`
-- `OLLAMA_CLOUD_LLM_MODELS=qwen2.5:7b,llama3.1:8b,mistral`
+- `OLLAMA_CLOUD_LLM_MODELS=deepseek-v4-pro:cloud,qwen3.5:cloud`
 - `QDRANT_URL=http://localhost:6333`
 - `QDRANT_COLLECTION=documents_local_rag`
 - `DATA_DIR=./data/documents`
@@ -65,6 +66,7 @@ Contraintes applicatives :
 - l'interface permet de choisir le provider Ollama et le LLM associe ;
 - les embeddings restent resolus via l'endpoint Ollama local pour garder un index Qdrant stable.
 - en mode `cloud`, le LLM utilise `OLLAMA_API_KEY` via le header `Authorization: Bearer ...`.
+- si votre environnement Windows intercepte TLS, mettez temporairement `OLLAMA_CLOUD_SSL_VERIFY=false` pour diagnostiquer.
 
 ## Lancer Qdrant
 
