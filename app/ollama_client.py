@@ -2,7 +2,8 @@ from typing import Any
 
 import requests
 
-from app.config import OLLAMA_BASE_URL, OLLAMA_EMBED_MODEL, OLLAMA_LLM_MODEL, OLLAMA_REQUEST_TIMEOUT
+from app.config import OLLAMA_EMBED_MODEL, OLLAMA_LLM_MODEL, OLLAMA_REQUEST_TIMEOUT
+from app.rag_service import _get_provider_config
 
 
 def _headers() -> dict[str, str]:
@@ -10,9 +11,12 @@ def _headers() -> dict[str, str]:
 
 
 def embed(text: str) -> list[float]:
+    provider_config = _get_provider_config("local")
+    base_url = str(provider_config["base_url"])
+    headers = {**_headers(), **dict(provider_config.get("headers", {}) or {})}
     response = requests.post(
-        f"{OLLAMA_BASE_URL}/api/embeddings",
-        headers=_headers(),
+        f"{base_url}/api/embeddings",
+        headers=headers,
         json={"model": OLLAMA_EMBED_MODEL, "prompt": text},
         timeout=OLLAMA_REQUEST_TIMEOUT,
     )
@@ -34,12 +38,15 @@ def embed(text: str) -> list[float]:
     raise RuntimeError("Unexpected embedding response format from Ollama.")
 
 
-def ask_llm(prompt: str) -> str:
+def ask_llm(prompt: str, llm_model: str | None = None, llm_provider: str | None = None) -> str:
+    provider_config = _get_provider_config(llm_provider)
+    base_url = str(provider_config["base_url"])
+    headers = {**_headers(), **dict(provider_config.get("headers", {}) or {})}
     response = requests.post(
-        f"{OLLAMA_BASE_URL}/api/generate",
-        headers=_headers(),
+        f"{base_url}/api/generate",
+        headers=headers,
         json={
-            "model": OLLAMA_LLM_MODEL,
+            "model": llm_model or OLLAMA_LLM_MODEL,
             "prompt": prompt,
             "temperature": 0.2,
             "stream": False,

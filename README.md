@@ -7,6 +7,7 @@ Le POC repose sur :
 - `LlamaIndex` pour l'orchestration RAG ;
 - `Qdrant` pour la recherche vectorielle ;
 - `Ollama` local pour le LLM et les embeddings ;
+- `Ollama` local ou cloud pour le LLM, avec `bge-m3` comme embedding unique ;
 - `FastAPI` pour l'API ;
 - `Streamlit` pour l'interface locale ;
 - `PyMuPDF`, `EasyOCR` et `python-docx` pour l'extraction documentaire.
@@ -24,7 +25,7 @@ Installer Ollama puis telecharger au minimum les modeles suivants :
 
 ```bash
 ollama pull qwen2.5:7b
-ollama pull nomic-embed-text
+ollama pull bge-m3
 ```
 
 Verifier qu'Ollama tourne localement :
@@ -34,6 +35,7 @@ ollama list
 ```
 
 Par defaut, le projet cible `http://localhost:11434`.
+Le POC utilise `bge-m3` comme unique modele d'embeddings pour garantir la coherence de l'index Qdrant.
 
 ## Configuration
 
@@ -45,12 +47,24 @@ cp .env.example .env
 
 Variables principales :
 
-- `OLLAMA_BASE_URL=http://localhost:11434`
+- `OLLAMA_PROVIDER=local`
+- `OLLAMA_LOCAL_BASE_URL=http://localhost:11434`
+- `OLLAMA_CLOUD_BASE_URL=https://ollama.com`
+- `OLLAMA_API_KEY=<votre_cle_api_ollama>`
 - `OLLAMA_LLM_MODEL=qwen2.5:7b`
-- `OLLAMA_EMBED_MODEL=nomic-embed-text`
+- `OLLAMA_LOCAL_LLM_MODELS=qwen2.5:7b,llama3.1:8b,mistral`
+- `OLLAMA_CLOUD_LLM_MODELS=qwen2.5:7b,llama3.1:8b,mistral`
 - `QDRANT_URL=http://localhost:6333`
 - `QDRANT_COLLECTION=documents_local_rag`
 - `DATA_DIR=./data/documents`
+
+Contraintes applicatives :
+
+- les embeddings sont fixes a `bge-m3` ;
+- tout changement d'embeddings impose une reindexation complete de Qdrant ;
+- l'interface permet de choisir le provider Ollama et le LLM associe ;
+- les embeddings restent resolus via l'endpoint Ollama local pour garder un index Qdrant stable.
+- en mode `cloud`, le LLM utilise `OLLAMA_API_KEY` via le header `Authorization: Bearer ...`.
 
 ## Lancer Qdrant
 
@@ -96,6 +110,7 @@ python3 -m app.ingest
 ```
 
 La reindexation reconstruit la collection Qdrant du POC.
+Apres passage a `bge-m3`, relancez obligatoirement cette reindexation complete avant toute requete.
 
 ## Lancer l'application
 
@@ -108,6 +123,8 @@ streamlit run app/streamlit_app.py
 L'interface permet :
 
 - de poser une question ;
+- de choisir le LLM de generation ;
+- de choisir entre Ollama local et Ollama Cloud ;
 - de voir la reponse generee ;
 - de consulter les sources citees ;
 - de relancer la reindexation.
@@ -121,7 +138,7 @@ uvicorn app.rag_api:app --host 0.0.0.0 --port 8000 --reload
 Endpoints utiles :
 
 - `GET /health`
-- `GET /ask?query=...`
+- `GET /ask?query=...&llm_provider=local&llm_model=qwen2.5:7b`
 - `POST /reindex`
 
 Exemple :

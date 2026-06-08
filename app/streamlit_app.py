@@ -9,7 +9,16 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from app.config import APP_NAME, DATA_DIR, OLLAMA_EMBED_MODEL, OLLAMA_LLM_MODEL, QDRANT_COLLECTION
+from app.config import (
+    APP_NAME,
+    DATA_DIR,
+    OLLAMA_EMBED_MODEL,
+    OLLAMA_LLM_MODEL,
+    OLLAMA_PROVIDER,
+    OLLAMA_PROVIDER_CONFIGS,
+    OLLAMA_PROVIDERS,
+    QDRANT_COLLECTION,
+)
 from app.rag_service import query_documents, reindex_documents
 
 
@@ -21,15 +30,28 @@ with st.sidebar:
     st.subheader("Configuration")
     st.write(f"Documents: `{DATA_DIR}`")
     st.write(f"Collection Qdrant: `{QDRANT_COLLECTION}`")
-    st.write(f"LLM Ollama: `{OLLAMA_LLM_MODEL}`")
     st.write(f"Embeddings Ollama: `{OLLAMA_EMBED_MODEL}`")
+    selected_provider = st.selectbox(
+        "Provider Ollama",
+        options=OLLAMA_PROVIDERS,
+        index=OLLAMA_PROVIDERS.index(OLLAMA_PROVIDER),
+    )
+    provider_models = [str(model) for model in OLLAMA_PROVIDER_CONFIGS[selected_provider]["models"]]
+    default_llm = OLLAMA_LLM_MODEL if OLLAMA_LLM_MODEL in provider_models else provider_models[0]
+    selected_llm = st.selectbox(
+        "LLM Ollama",
+        options=provider_models,
+        index=provider_models.index(default_llm),
+    )
+    st.write(f"Endpoint actif: `{OLLAMA_PROVIDER_CONFIGS[selected_provider]['base_url']}`")
+    st.caption("Le changement d'embeddings n'est pas autorise sans reindexation complete.")
 
     if st.button("Reindexer les documents", use_container_width=True):
         with st.spinner("Reindexation en cours..."):
             try:
                 result = reindex_documents()
                 st.success(
-                    f"Index reconstruit : {result['documents']} document(s), {result['chunks']} chunk(s)."
+                    f"Index reconstruit : {result['documents']} document(s), {result['chunks']} chunk(s), embeddings `{result['embedding_model']}`."
                 )
             except Exception as exc:
                 st.error(str(exc))
@@ -46,7 +68,11 @@ if st.button("Poser la question", type="primary", use_container_width=True):
     else:
         with st.spinner("Recherche et generation en cours..."):
             try:
-                result = query_documents(question.strip())
+                result = query_documents(
+                    question.strip(),
+                    llm_model=selected_llm,
+                    llm_provider=selected_provider,
+                )
             except Exception as exc:
                 st.error(str(exc))
             else:
