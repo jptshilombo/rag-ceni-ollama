@@ -5,7 +5,7 @@ import fitz
 import pytesseract
 from pdf2image import convert_from_path
 
-from config import OCR_LANG
+from app.config import OCR_LANG
 
 
 MIN_TEXT_CHARS_PER_PAGE = 80

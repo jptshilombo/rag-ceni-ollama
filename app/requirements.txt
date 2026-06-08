@@ -1,5 +1,10 @@
 fastapi
 uvicorn
+streamlit
+llama-index
+llama-index-llms-ollama
+llama-index-embeddings-ollama
+llama-index-vector-stores-qdrant
 qdrant-client
 python-dotenv
 requests

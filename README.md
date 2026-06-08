@@ -1,120 +1,150 @@
-# RAG CENI Ollama Cloud
+# POC RAG local avec LlamaIndex, Qdrant et Ollama
 
-## Introduction
+Ce depot contient un POC local d'assistant documentaire capable d'indexer des fichiers PDF, DOCX et TXT, puis de repondre en francais avec citations de sources.
 
-Ce projet fournit un RAG complet pour documents CENI : PV, lois, rapports et archives electorales. Il combine Ollama Cloud pour le LLM et les embeddings, Qdrant pour la recherche vectorielle, FastAPI comme orchestrateur et une couche OCR pour les PDF scannes.
+Le POC repose sur :
 
-Deux variantes de modele sont configurees : Qwen2.5 et Hermes.
+- `LlamaIndex` pour l'orchestration RAG ;
+- `Qdrant` pour la recherche vectorielle ;
+- `Ollama` local pour le LLM et les embeddings ;
+- `FastAPI` pour l'API ;
+- `Streamlit` pour l'interface locale ;
+- `PyMuPDF`, `Tesseract` et `python-docx` pour l'extraction documentaire.
 
 ## Prerequis
 
-- Docker
-- Docker Compose
-- Cle API Ollama Cloud
-- Pour une ingestion hors Docker : Python 3.10, Tesseract OCR et Poppler
+- Python 3.10+
+- Docker et Docker Compose
+- Ollama installe localement
+- Pour les PDF scannes : `tesseract-ocr`, pack langue francais, et `poppler-utils`
+
+## Installation d'Ollama
+
+Installer Ollama puis telecharger au minimum les modeles suivants :
+
+```bash
+ollama pull qwen2.5:7b
+ollama pull nomic-embed-text
+```
+
+Verifier qu'Ollama tourne localement :
+
+```bash
+ollama list
+```
+
+Par defaut, le projet cible `http://localhost:11434`.
 
 ## Configuration
+
+Copier le fichier d'exemple :
 
 ```bash
 cp .env.example .env
 ```
 
-Renseignez au minimum :
-
-```bash
-OLLAMA_API_KEY=<votre_cle_ollama_cloud>
-```
-
 Variables principales :
 
-- `MODEL_LLM=qwen2.5:7b`
-- `MODEL_LLM_HERMES=hermes-3:8b`
-- `MODEL_EMBED=nomic-embed-text`
-- `QDRANT_URL=http://qdrant:6333`
-- `OCR_LANG=fra`
-- `ENV=local`
+- `OLLAMA_BASE_URL=http://localhost:11434`
+- `OLLAMA_LLM_MODEL=qwen2.5:7b`
+- `OLLAMA_EMBED_MODEL=nomic-embed-text`
+- `QDRANT_URL=http://localhost:6333`
+- `QDRANT_COLLECTION=documents_local_rag`
+- `DATA_DIR=./data/documents`
 
-## Lancement en local
+## Lancer Qdrant
 
-Demarrer Qdrant et l'API :
-
-```bash
-docker compose -f docker/docker-compose.local.yml up -d --build
-```
-
-Placez vos documents dans `data/`, puis lancez l'ingestion :
+Le `docker-compose.yml` racine lance Qdrant en local :
 
 ```bash
-docker compose -f docker/docker-compose.local.yml run --rm api python ingest.py
-```
-
-Interroger l'API :
-
-```bash
-curl "http://localhost:8000/ask?query=Quels%20documents%20mentionnent%20les%20resultats%20provisoires%20%3F"
+docker compose up -d qdrant
 ```
 
 Verification :
 
 ```bash
-curl "http://localhost:8000/health"
+curl http://localhost:6333/healthz
 ```
 
-## Lancement sur AWS
-
-Le deploiement AWS cible une instance EC2 sans GPU, car les modeles sont appeles via Ollama Cloud.
-
-Resume :
+## Installer les dependances Python
 
 ```bash
-git clone <URL_DU_REPO> rag-ceni-ollama
-cd rag-ceni-ollama
-cp .env.example .env
-docker compose -f docker/docker-compose.aws.yml up -d --build
-docker compose -f docker/docker-compose.aws.yml run --rm api python ingest.py
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r app/requirements.txt
 ```
 
-Voir le guide detaille : `infra/aws_ec2_setup.md`.
+## Ajouter des documents
 
-## Utilisation des modeles
+Deposez vos fichiers dans `data/documents/`.
 
-Modele Qwen par defaut :
+Le dossier versionne reste vide par defaut via `.gitkeep`. Les documents reels ne sont pas commites.
+
+Types supportes :
+
+- PDF texte ;
+- PDF scannes avec OCR ;
+- DOCX ;
+- TXT.
+
+## Indexer les documents
 
 ```bash
-curl "http://localhost:8000/ask?query=Votre%20question&model=qwen"
+python3 -m app.ingest
 ```
 
-Modele Hermes :
+La reindexation reconstruit la collection Qdrant du POC.
+
+## Lancer l'application
+
+### Interface Streamlit
 
 ```bash
-curl "http://localhost:8000/ask?query=Votre%20question&model=hermes"
+streamlit run app/streamlit_app.py
 ```
 
-## Specificites CENI
+L'interface permet :
 
-L'ingestion detecte automatiquement :
+- de poser une question ;
+- de voir la reponse generee ;
+- de consulter les sources citees ;
+- de relancer la reindexation.
 
-- PDF texte via PyMuPDF.
-- PDF scannes via OCR Tesseract.
-- TXT en lecture directe.
-- DOCX via `python-docx`.
+### API FastAPI
 
-Les chunks envoyes dans Qdrant incluent les metadonnees suivantes :
+```bash
+uvicorn app.rag_api:app --host 0.0.0.0 --port 8000 --reload
+```
 
-- `filename`
-- `path`
-- `type_document` : `pv`, `loi`, `rapport` ou `autre`
-- `cycle_electoral` : annee detectee dans le nom du fichier
-- `chunk_index`
-- `text`
+Endpoints utiles :
 
-Le prompt RAG impose de repondre uniquement a partir du contexte extrait des archives CENI.
+- `GET /health`
+- `GET /ask?query=...`
+- `POST /reindex`
 
-## Evolutions possibles
+Exemple :
 
-- Interface web Streamlit.
-- Authentification API.
-- Reverse proxy Nginx ou ALB AWS avec HTTPS.
-- Monitoring applicatif et metriques d'usage.
-- Stockage S3 pour les documents sources.
-- Indexation incrementale avec suivi des hash de fichiers.
+```bash
+curl "http://localhost:8000/ask?query=Quels%20elements%20ressortent%20du%20document%20indexe%20%3F"
+```
+
+## Exemple de test rapide
+
+1. Placer un PDF ou DOCX dans `data/documents/`.
+2. Executer `python3 -m app.ingest`.
+3. Lancer `streamlit run app/streamlit_app.py`.
+4. Poser une question en francais relative au document.
+5. Verifier que la reponse contient des sources avec nom de fichier et extrait.
+
+## Documentation projet
+
+- Analyse initiale : [docs/poc-rag-analysis.md](docs/poc-rag-analysis.md)
+- Plan d'implementation : [docs/poc-rag-implementation-plan.md](docs/poc-rag-implementation-plan.md)
+
+## Limites actuelles du POC
+
+- pas d'authentification ni de gestion des droits ;
+- pas d'indexation incrementale ;
+- pas de deduplication documentaire ;
+- pas de pipeline de tests automatise ;
+- performance et qualite dependantes des modeles Ollama et de la machine locale.
