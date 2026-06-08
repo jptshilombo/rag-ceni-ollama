@@ -18,9 +18,20 @@ def embed(text: str) -> list[float]:
     )
     response.raise_for_status()
     data: dict[str, Any] = response.json()
-    if "embedding" not in data:
-        raise RuntimeError("Unexpected embedding response format from Ollama.")
-    return data["embedding"]
+
+    # Native Ollama Cloud format: {"embeddings": [[...]]}
+    if "embeddings" in data and data["embeddings"]:
+        return data["embeddings"][0]
+
+    # OpenAI-compatible format: {"data": [{"embedding": [...]}]}
+    if "data" in data and data["data"]:
+        return data["data"][0]["embedding"]
+
+    # Legacy single-vector format
+    if "embedding" in data:
+        return data["embedding"]
+
+    raise RuntimeError("Unexpected embedding response format from Ollama.")
 
 
 def ask_llm(prompt: str) -> str:
