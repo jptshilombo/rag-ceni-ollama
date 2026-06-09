@@ -1,0 +1,5 @@
+{
+  "collection": "documents_local_rag",
+  "embedding_model": "bge-m3",
+  "vector_size": 1024
+}

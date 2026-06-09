@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
-from llama_index.core import StorageContext, VectorStoreIndex
+from llama_index.core import VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
@@ -44,6 +44,22 @@ class SourceSnippet:
 class QueryResult:
     answer: str
     sources: list[SourceSnippet]
+
+
+ProgressCallback = Callable[[str, int, int, str], None]
+
+EMBEDDING_BATCH_SIZE = 8
+
+
+def _notify_progress(
+    progress_callback: ProgressCallback | None,
+    step: str,
+    current: int,
+    total: int,
+    message: str,
+) -> None:
+    if progress_callback is not None:
+        progress_callback(step, current, total, message)
 
 
 def get_qdrant_client() -> QdrantClient:
@@ -174,6 +190,10 @@ def _get_vector_store(client: QdrantClient) -> QdrantVectorStore:
     return QdrantVectorStore(client=client, collection_name=QDRANT_COLLECTION)
 
 
+def _iter_batches(items: list[Any], batch_size: int) -> list[list[Any]]:
+    return [items[index : index + batch_size] for index in range(0, len(items), batch_size)]
+
+
 def _get_text_from_result(result: Any) -> str:
     node = getattr(result, "node", result)
     return node.get_content().strip()
@@ -219,26 +239,78 @@ def _build_prompt(question: str, sources: list[SourceSnippet]) -> str:
     )
 
 
-def reindex_documents() -> dict[str, int | str]:
+def reindex_documents(
+    progress_callback: ProgressCallback | None = None,
+) -> dict[str, int | str]:
+    _notify_progress(
+        progress_callback,
+        "load",
+        0,
+        1,
+        f"Chargement des documents depuis {DATA_DIR}...",
+    )
     documents = load_documents(DATA_DIR)
     if not documents:
         raise RuntimeError(
             f"Aucun document supporte trouve dans {DATA_DIR}. Ajoutez des PDF, DOCX ou TXT."
         )
+    _notify_progress(
+        progress_callback,
+        "load",
+        1,
+        1,
+        f"{len(documents)} document(s) charge(s).",
+    )
 
+    _notify_progress(progress_callback, "split", 0, 1, "Decoupage des documents en chunks...")
     splitter = SentenceSplitter(
         chunk_size=RAG_CHUNK_SIZE,
         chunk_overlap=RAG_CHUNK_OVERLAP,
     )
     nodes = splitter.get_nodes_from_documents(documents)
+    _notify_progress(
+        progress_callback,
+        "split",
+        1,
+        1,
+        f"{len(nodes)} chunk(s) pret(s) pour l'indexation.",
+    )
+
+    _notify_progress(progress_callback, "setup", 0, 1, "Verification du modele d'embeddings...")
     embed_model = get_embed_model()
     probe_vector = embed_model.get_text_embedding("dimension probe")
     client = get_qdrant_client()
+    _notify_progress(progress_callback, "setup", 1, 1, "Recreation de la collection Qdrant...")
     _ensure_collection(client, len(probe_vector), recreate=True)
 
-    storage_context = StorageContext.from_defaults(vector_store=_get_vector_store(client))
-    VectorStoreIndex(nodes, storage_context=storage_context, embed_model=embed_model)
+    vector_store = _get_vector_store(client)
+    batches = _iter_batches(nodes, EMBEDDING_BATCH_SIZE)
+    indexed_chunks = 0
+    for batch in batches:
+        embeddings = embed_model.get_text_embedding_batch(
+            [node.get_content() for node in batch],
+            show_progress=False,
+        )
+        for node, embedding in zip(batch, embeddings):
+            node.embedding = embedding
+        vector_store.add(batch)
+        indexed_chunks += len(batch)
+        _notify_progress(
+            progress_callback,
+            "embed",
+            indexed_chunks,
+            len(nodes),
+            f"Indexation des chunks {indexed_chunks}/{len(nodes)}...",
+        )
+
     _save_index_metadata(len(probe_vector))
+    _notify_progress(
+        progress_callback,
+        "done",
+        len(nodes),
+        len(nodes),
+        "Indexation terminee.",
+    )
 
     return {
         "status": "indexed",

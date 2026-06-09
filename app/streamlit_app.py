@@ -47,14 +47,39 @@ with st.sidebar:
     st.caption("Le changement d'embeddings n'est pas autorise sans reindexation complete.")
 
     if st.button("Reindexer les documents", use_container_width=True):
-        with st.spinner("Reindexation en cours..."):
-            try:
-                result = reindex_documents()
-                st.success(
-                    f"Index reconstruit : {result['documents']} document(s), {result['chunks']} chunk(s), embeddings `{result['embedding_model']}`."
-                )
-            except Exception as exc:
-                st.error(str(exc))
+        progress_bar = st.progress(0)
+        progress_text = st.empty()
+
+        def update_progress(step: str, current: int, total: int, message: str) -> None:
+            if step == "load":
+                base_percent = 0
+                step_percent = 10
+            elif step == "split":
+                base_percent = 10
+                step_percent = 10
+            elif step == "setup":
+                base_percent = 20
+                step_percent = 10
+            elif step == "embed":
+                base_percent = 30
+                step_percent = 65
+            else:
+                base_percent = 95
+                step_percent = 5
+
+            ratio = current / total if total else 0
+            progress_bar.progress(min(100, base_percent + int(ratio * step_percent)))
+            progress_text.write(message)
+
+        try:
+            result = reindex_documents(progress_callback=update_progress)
+            progress_bar.progress(100)
+            progress_text.write("Indexation terminee.")
+            st.success(
+                f"Index reconstruit : {result['documents']} document(s), {result['chunks']} chunk(s), embeddings `{result['embedding_model']}`."
+            )
+        except Exception as exc:
+            st.error(str(exc))
 
 question = st.text_area(
     "Question",
